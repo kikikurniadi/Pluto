@@ -1,0 +1,191 @@
+*** Begin Patch
+*** Add File: Dockerfile
+@@
+# Minimal container for running Pluto tests in a clean environment
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system deps for common Python packages and testing tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only requirements first to leverage Docker cache
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy repository
+COPY . /app
+
+# Default command: run test suite for agents
+CMD ["bash", "-lc", "pytest -q agents --maxfail=1"]
+*** End Patch
+*** Begin Patch
+*** Add File: requirements.txt
+@@
+fastapi==0.100.0
+pydantic==1.10.12
+requests==2.31.0
+python-dotenv==1.0.0
+uvicorn==0.23.2
+pytest==7.4.2
+pytest-asyncio==0.22.0
+httpx==0.24.1
+*** End Patch
+*** Begin Patch
+*** Add File: .github/workflows/ci.yml
+@@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run tests
+        run: pytest -q agents --maxfail=1
+*** End Patch
+*** Begin Patch
+*** Add File: agents/run_isolated_tests.py
+@@
+"""Run a couple of unit tests in-process while faking the heavy `uagents` package.
+This avoids pytest collection and the environment that starts PocketIC.
+
+Usage: python run_isolated_tests.py
+"""
+import sys
+import types
+import asyncio
+
+# Create a minimal fake `uagents` package using ModuleType so the import system
+# treats it like a real package and won't try to load submodules from disk.
+class FakeAgent:
+    def __init__(self, *args, **kwargs):
+        self.address = "agent_fake"
+    async def send(self, dest, msg):
+        return True
+
+def fake_send(agent, dest, msg):
+    return asyncio.run(FakeAgent().send(dest, msg))
+
+def make_module(name: str):
+    m = types.ModuleType(name)
+    return m
+
+# base package
+mod_uagents = make_module('uagents')
+mod_uagents.Agent = FakeAgent
+mod_uagents.send = fake_send
+
+# common submodules some code imports directly
+mod_uagents_agent = make_module('uagents.agent')
+mod_uagents_agent.Agent = FakeAgent
+mod_uagents_context = make_module('uagents.context')
+mod_uagents_contrib = make_module('uagents.contrib')
+mod_uagents_contrib_protocols = make_module('uagents.contrib.protocols')
+mod_http = make_module('uagents.contrib.protocols.http')
+mod_http.Httpy = lambda ctx: None
+
+# inject before importing test modules
+sys.modules['uagents'] = mod_uagents
+sys.modules['uagents.agent'] = mod_uagents_agent
+sys.modules['uagents.context'] = mod_uagents_context
+sys.modules['uagents.contrib'] = mod_uagents_contrib
+sys.modules['uagents.contrib.protocols'] = mod_uagents_contrib_protocols
+sys.modules['uagents.contrib.protocols.http'] = mod_http
+
+print('Inserted fake uagents into sys.modules')
+
+# Run orchestrator test
+print('\n== running orchestrator_simple test ==')
+import orchestrator_simple as orch
+
+from fastapi.testclient import TestClient
+client = TestClient(orch.app)
+resp = client.post('/query', json={'text': 'berapa harga bitcoin'})
+print('orchestrator status:', resp.status_code, 'json:', resp.json())
+
+# Run storage_agent tests (async)
+print('\n== running storage_agent dry-run test ==')
+import storage_agent as sa
+
+async def run_storage_tests():
+    # ensure ICP_NETWORK_URL is empty for dry-run
+    import os
+    os.environ['ICP_NETWORK_URL'] = ''
+    res = await sa.call_add_chat_entry_direct('id-1', 'hello')
+    print('storage_agent.call_add_chat_entry_direct ->', res)
+
+asyncio.run(run_storage_tests())
+print('\nDone')
+*** End Patch
+*** Begin Patch
+*** Add File: uagents/__init__.py
+@@
+"""Lightweight shim for uagents used only for local testing in this workspace.
+This shadows the installed heavy `uagents` package by existing in the repo root
+and being importable first (workspace is in sys.path when running tests in VS Code).
+
+The shim implements minimal Agent, send, and a tiny context object to satisfy
+imports used by the agents in this repo.
+"""
+from types import SimpleNamespace
+import asyncio
+
+class Agent:
+    def __init__(self, *args, **kwargs):
+        self.address = "agent://local/shim"
+        self.ctx = SimpleNamespace(logger=SimpleNamespace(info=lambda *a, **k: None), send=self.send)
+    def run(self):
+        # no-op for shim
+        return
+    async def send(self, dest, message):
+        return True
+
+async def send(agent, dest, message):
+    return await Agent().send(dest, message)
+
+# Minimal export names
+__all__ = ['Agent', 'send']
+*** End Patch
+*** Begin Patch
+*** Add File: uagents/contrib/__init__.py
+@@
+# contrib package for shim
+*** End Patch
+*** Begin Patch
+*** Add File: uagents/contrib/protocols/__init__.py
+@@
+# protocols package for shim
+*** End Patch
+*** Begin Patch
+*** Add File: uagents/contrib/protocols/http.py
+@@
+# HTTP protocol shim used by orchestrator_agent
+class Httpy:
+    def __init__(self, ctx):
+        self.ctx = ctx
+
+class HttpyRequest:
+    def __init__(self, json):
+        self.json = json
+
+class HttpyResponse:
+    def __init__(self, status_code=200, json=None):
+        self.status_code = status_code
+        self.json = json or {}
+*** End Patch
