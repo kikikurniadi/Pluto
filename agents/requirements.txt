@@ -4,3 +4,4 @@ python-dotenv
 requests
 ic-py
 uagents
+APScheduler

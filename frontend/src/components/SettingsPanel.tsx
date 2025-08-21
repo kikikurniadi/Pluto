@@ -117,6 +117,29 @@ export default function SettingsPanel() {
         </div>
       </div>
 
+      <div className="border-t pt-4">
+        <h4 className="text-sm font-medium mb-2">Rotate Schedule Token</h4>
+        <div className="flex items-center gap-2 mb-2">
+          <label className="text-sm">New token</label>
+          <input type="text" id="rotate-token" placeholder="new token" className="px-2 py-1 border rounded w-full" />
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={async () => {
+            const token = (document.getElementById('rotate-token') as HTMLInputElement).value
+            if (!token) return
+            const cur = (document.getElementById('sched-token') as HTMLInputElement).value
+            const headers: Record<string,string> = {'Content-Type': 'application/json'}
+            if (cur) headers['Authorization'] = `Bearer ${cur}`
+            await fetch('/schedule/rotate', { method: 'POST', headers, body: JSON.stringify({ new_token: token }) })
+            // update UI token field so the user can continue using it
+            try { (document.getElementById('sched-token') as HTMLInputElement).value = token } catch {}
+            // clear rotate input
+            try { (document.getElementById('rotate-token') as HTMLInputElement).value = '' } catch {}
+            fetchStatus(token)
+          }}>Rotate</Button>
+        </div>
+      </div>
+
 
 
       <div className="flex items-center gap-3">

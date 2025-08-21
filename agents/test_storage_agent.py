@@ -22,3 +22,10 @@ async def test_call_add_chat_entry_direct_dry_run(monkeypatch):
     res = await sa.call_add_chat_entry_direct("id-1", "hello")
     assert res.get("ok") is True
     assert res.get("dry_run") is True
+
+
+def test_storage_health_helper():
+    import storage_agent as sa
+    h = sa.health()
+    assert "canister" in h
+    assert "icpy" in h

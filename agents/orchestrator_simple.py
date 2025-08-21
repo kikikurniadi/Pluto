@@ -296,14 +296,32 @@ async def schedule_rotate(r: RotateIn, request: Request, _auth=Depends(_check_sc
         old = None
 
     try:
-        with open(token_file, "w") as f:
+        # write token atomically and set restrictive permissions
+        tmp_path = token_file + ".tmp"
+        with open(tmp_path, "w") as f:
             f.write(r.new_token or "")
+        try:
+            os.chmod(tmp_path, 0o600)
+        except Exception:
+            pass
+        os.replace(tmp_path, token_file)
     except Exception:
         # Fall back to in-memory env var if file write fails
         os.environ["SCHEDULE_TOKEN"] = r.new_token or ""
 
     client_ip = request.client.host if request.client else None
     logger.info("Schedule token rotated by %s (old set=%s) persisted_to=%s", client_ip, bool(old), token_file)
+
+    # append audit log entry (timestamp, ip, old-present)
+    try:
+        audit_path = os.environ.get("SCHEDULE_TOKEN_AUDIT", "./.schedule_token_audit.log")
+        with open(audit_path, "a") as af:
+            import datetime
+            ts = datetime.datetime.utcnow().isoformat() + "Z"
+            af.write(f"{ts} ip={client_ip} old_present={bool(old)} path={token_file}\n")
+    except Exception:
+        logger.exception("Failed to append schedule token audit log")
+
     return {"ok": True}
 
 
