@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+sdist/
+develop-eggs/
+.installed.cfg
+*.egg
+pip-wheel-metadata/
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+coverage/
+nosetests.xml
+pytest_cache/
+.hypothesis/
+*.cover
+*.coverage
+*.log
+local_settings.py
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+agents/venv/
+frontend/agents/venv/
+venv_test/
+
+# VS Code
+.vscode/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor temp files
+*~
+*.swp
+*.swo
+.idea/
+
+# Secrets
+.env
+.env.*
