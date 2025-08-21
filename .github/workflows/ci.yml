@@ -22,10 +22,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r agents/requirements.txt
+          # ensure test runner is available in case it's not in requirements
+          pip install pytest
 
       - name: Run pytest
         run: |
           PYTHONPATH=agents pytest -q
+
+      - name: Fix missing .gitmodules (if any)
+        run: |
+          # Some runners may fail during post-checkout if a submodule entry exists but .gitmodules is absent.
+          # Create an empty .gitmodules file to avoid fatal errors during cleanup.
+          if [ ! -f .gitmodules ] && git ls-files --error-unmatch icp_canister > /dev/null 2>&1; then
+            echo "" > .gitmodules
+            git add .gitmodules || true
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
