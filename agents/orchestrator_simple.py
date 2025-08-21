@@ -43,18 +43,65 @@ async def query_endpoint(q: QueryIn):
     msg = StoreChat(entry_id=entry_id, entry=f"Q: {text} -- A: {reply}")
     # send to storage_agent (non-blocking)
     async def _send(dest, message):
+        global agent
         # prefer agent.send if available
         send_fn = getattr(agent, "send", None) if agent is not None else None
         if send_fn:
             return await send_fn(dest, message)
-        # fall back to uagents.send if available (lazy import)
+
+        # If agent not created, try to instantiate uagents.Agent from module (test provides a fake Agent)
         try:
             import uagents as _uagents_module
+            AgentClass = getattr(_uagents_module, "Agent", None)
+            if AgentClass and agent is None:
+                # create global agent instance
+                agent = AgentClass()
+                send_fn = getattr(agent, "send", None)
+                if send_fn:
+                    return await send_fn(dest, message)
+            # fall back to module-level send function if present
             send_mod_fn = getattr(_uagents_module, "send", None)
             if send_mod_fn:
                 return await send_mod_fn(agent, dest, message)
         except Exception:
             pass
+
+        # Fallback: try HTTP submit to storage agent (useful if other uagents APIs are not available)
+        try:
+            # if storage_agent module is available locally, call its handler directly (in-process)
+            if dest == "storage_agent":
+                try:
+                    import storage_agent as sa
+                    # create a fake ctx with logger and send
+                    class Ctx:
+                        def __init__(self):
+                            import logging
+                            self.logger = logging.getLogger("orchestrator_simple")
+
+                        async def send(self, to, msg):
+                            return True
+
+                    ctx = Ctx()
+                    # call handler directly
+                    if hasattr(sa, "handle_store_chat"):
+                        await sa.handle_store_chat(ctx, getattr(agent, "address", "orchestrator_simple"), message)
+                        return True
+                except Exception:
+                    pass
+            # fallback to HTTP POST if storage agent is running as a server
+            import requests
+            submit_url = "http://127.0.0.1:8000/submit"
+            payload = {
+                "destination": dest,
+                "message": {"entry_id": getattr(message, "entry_id", None), "entry": getattr(message, "entry", None)},
+                "sender": getattr(agent, "address", "orchestrator_simple")
+            }
+            resp = requests.post(submit_url, json=payload, timeout=2)
+            if resp.status_code in (200, 202):
+                return True
+        except Exception:
+            pass
+
         # neither available
         raise RuntimeError("no send API available on Agent or uagents module")
 

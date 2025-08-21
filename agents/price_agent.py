@@ -33,7 +33,7 @@ async def startup(ctx: Any):
     if agent is not None:
         ctx.logger.info(f"PriceAgent address: {agent.address}")
 
-async def get_price(ctx: Any, sender: str, msg: PriceRequest):
+async def handle_price_request(ctx: Any, sender: str, msg: PriceRequest):
     ctx.logger.info(f"Received price request for: {msg.coin_id}")
     try:
         params = {"ids": msg.coin_id, "vs_currencies": "usd"}

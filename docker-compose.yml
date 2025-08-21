@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  storage_agent:
+    build: .
+    command: python agents/storage_agent.py
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    environment:
+      - STORAGE_AGENT_SEED=storage_agent_secret_seed
+
+  orchestrator:
+    build: .
+    command: uvicorn agents.orchestrator_simple:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    depends_on:
+      - storage_agent
+    volumes:
+      - ./:/app
+    working_dir: /app
