@@ -43,4 +43,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          # Run frontend tests in CI (vitest) before build
+          npm ci
+          npm test --silent
           npm run build
