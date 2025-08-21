@@ -67,3 +67,15 @@ export default tseslint.config([
   },
 ])
 ```
+
+## Mock orchestrator
+
+If you don't have the backend/orchestrator running, you can enable a local mock response handler. Create a `.env` file in `frontend/` or set the env var when starting Vite:
+
+```bash
+# in frontend/ directory
+echo "VITE_USE_MOCK=true" > .env
+npm run dev
+```
+
+When `VITE_USE_MOCK=true` the `sendQuery` function will return canned replies (price, news, or an echo) so the chat UI works without a backend.
