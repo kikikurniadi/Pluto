@@ -65,7 +65,7 @@ export async function sendQuery(text: string): Promise<QueryResponse> {
     }
 
     return { success: true, reply: JSON.stringify(data) }
-  } catch (err: any) {
+  } catch {
     // On network errors, return a mock response so UI remains functional
     return mockResponse(text)
   }

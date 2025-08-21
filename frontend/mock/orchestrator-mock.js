@@ -26,6 +26,5 @@ app.post('/query', (req, res) => {
 
 const port = process.env.PORT || 8001
 app.listen(port, () => {
-  // eslint-disable-next-line no-console
   console.log(`Orchestrator mock listening on http://localhost:${port}`)
 })

@@ -7,7 +7,7 @@ export default function SettingsPanel() {
   const [useMock, setUseMock] = useState(() => {
     try {
       return typeof window !== 'undefined' && window.localStorage?.getItem('useMockServer') === 'true'
-    } catch (e) {
+    } catch {
       return false
     }
   })
@@ -17,7 +17,7 @@ export default function SettingsPanel() {
       if (typeof window !== 'undefined') {
         window.localStorage.setItem('useMockServer', useMock ? 'true' : 'false')
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [useMock])
@@ -26,7 +26,7 @@ export default function SettingsPanel() {
     <div className="mb-4 flex flex-col gap-4">
       <div className="flex items-center gap-2">
         <label className="text-sm text-slate-300 mr-2">Coin</label>
-        <Select value={coin} onChange={(e) => setCoin((e.target as HTMLSelectElement).value)}>
+  <Select value={coin} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCoin(e.target.value)}>
           <option value="bitcoin">Bitcoin</option>
           <option value="ethereum">Ethereum</option>
           <option value="solana">Solana</option>
@@ -38,7 +38,7 @@ export default function SettingsPanel() {
         <input
           type="checkbox"
           checked={useMock}
-          onChange={(e) => setUseMock(e.target.checked)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUseMock(e.target.checked)}
           aria-label="Use mock server"
           className="h-4 w-4"
         />
