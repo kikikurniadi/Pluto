@@ -48,6 +48,13 @@ except Exception:
             self.entry_id = entry_id
             self.entry = entry
 
+try:
+    from .provenance import sign_hex
+except Exception:
+    # fallback if provenance module not present at import time
+    def sign_hex(h):
+        return None
+
 
 async def initialize(ctx: Any):
     # kept for parity with the uagents lifecycle; will be called if an Agent is created
@@ -173,12 +180,33 @@ async def handle_store_chat(ctx: Any, sender: str, msg: StoreChat):
     else:
         icp_network_url = ICP_NETWORK_URL or None
 
+    # Compute content hash and signature always (for provenance metadata)
+    try:
+        content_hash = hashlib.sha256(msg.entry.encode()).hexdigest()
+    except Exception:
+        content_hash = None
+
+    sig = None
+    try:
+        if content_hash:
+            sig = sign_hex(content_hash)
+    except Exception:
+        sig = None
+
+    stored_payload = None
+    try:
+        # store a JSON string containing entry + provenance metadata
+        import json
+        stored_payload = json.dumps({"entry": msg.entry, "content_hash": content_hash, "signature": sig})
+    except Exception:
+        stored_payload = msg.entry
+
     if not icp_network_url or Client is None:
         ctx.logger.info("DRY RUN mode: not performing on-chain call. entry_id=%s", entry_id)
-        return {"ok": True, "dry_run": True, "entry_id": entry_id}
+        return {"ok": True, "dry_run": True, "entry_id": entry_id, "content_hash": content_hash, "signature": sig}
 
     # perform on-chain write
-    result = await call_add_chat_entry_direct(entry_id, msg.entry)
+    result = await call_add_chat_entry_direct(entry_id, stored_payload)
     if result.get("ok"):
         ctx.logger.info("Successfully wrote to on-chain memory (entry_id=%s) after %s attempts", entry_id, result.get("attempts"))
     else:

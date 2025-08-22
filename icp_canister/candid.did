@@ -1,0 +1,9 @@
+type Anchor = record { root: text; time: nat64; batch_id: text };
+
+service : {
+  "anchor_root" : (text, text) -> (text);
+  "get_anchor" : (text) -> (opt (text, nat64, text));
+  "list_anchors" : () -> (vec (text, nat64, text));
+  "set_pubkey" : (text) -> (text);
+  "get_pubkey" : () -> (text);
+}

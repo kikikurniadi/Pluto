@@ -1,6 +1,9 @@
 import os
 from dotenv import load_dotenv
 from typing import Any
+import hashlib
+from pathlib import Path
+from dotenv import load_dotenv
 from pydantic import BaseModel
 
 # avoid importing uagents at module import time; will lazy-import when running
@@ -16,6 +19,15 @@ AGENT_SEED = os.getenv("ORCHESTRATOR_AGENT_SEED", "orchestrator_agent_secret_see
 PRICE_AGENT_ADDRESS = os.getenv("PRICE_AGENT_ADDRESS")
 NEWS_AGENT_ADDRESS = os.getenv("NEWS_AGENT_ADDRESS")
 STORAGE_AGENT_ADDRESS = os.getenv("STORAGE_AGENT_ADDRESS")
+AGENTVERSE_ENABLED = os.getenv("AGENTVERSE_ENABLED", "false").lower() in ("1", "true", "yes")
+
+if AGENTVERSE_ENABLED:
+    try:
+        from .agentverse import AgentVerseClient
+        from .provenance import sign_hex
+    except Exception:
+        AgentVerseClient = None
+        sign_hex = None
 
 # --- Model Pesan untuk Komunikasi Antar Agen ---
 # Definisikan ulang di sini agar Orchestrator tahu formatnya
@@ -110,10 +122,24 @@ async def handle_query(request: Any, ctx: Any):
     else:
         response_text = "Maaf, saya tidak mengerti. Anda bisa bertanya tentang 'harga' atau 'berita' mata uang kripto."
 
-    # Simpan jejak percakapan ke on-chain memory (jika ada)
-    if STORAGE_AGENT_ADDRESS:
-        chat_entry = f"User: '{user_query}' | Pluto: '{response_text}'"
-        await ctx.send(STORAGE_AGENT_ADDRESS, StoreChat(entry=chat_entry))
+    # If agentverse flow is enabled, use that as the source of truth and
+    # produce provenance: content_hash + signature, then store via StorageAgent.
+    if AGENTVERSE_ENABLED and AgentVerseClient is not None:
+        av = AgentVerseClient()
+        res = av.query(user_query)
+        summary = res.get("summary")
+        # produce content_hash (sha256 of summary)
+        content_hash = hashlib.sha256(summary.encode()).hexdigest()
+        sig = sign_hex(content_hash) if sign_hex is not None else None
+        provenance_entry = f"User: '{user_query}' | Summary: '{summary}' | hash:{content_hash} | sig:{sig}"
+        response_text = summary
+        if STORAGE_AGENT_ADDRESS:
+            await ctx.send(STORAGE_AGENT_ADDRESS, StoreChat(entry=provenance_entry))
+    else:
+        # Simpan jejak percakapan ke on-chain memory (jika ada)
+        if STORAGE_AGENT_ADDRESS:
+            chat_entry = f"User: '{user_query}' | Pluto: '{response_text}'"
+            await ctx.send(STORAGE_AGENT_ADDRESS, StoreChat(entry=chat_entry))
 
     # Kirim respons kembali ke frontend
     return HttpyResponse(
