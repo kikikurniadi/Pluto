@@ -22,9 +22,22 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        working-directory: ./frontend
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+        run: |
+          # Detect whether frontend exists at ./frontend or in repo root and install accordingly
+          DIR=./frontend
+          if [ ! -d "$DIR" ]; then
+            DIR=.
+          fi
+          echo "Installing frontend dependencies in $DIR"
+          cd "$DIR"
+          npm ci --legacy-peer-deps --no-audit --no-fund
 
       - name: Build frontend
-        working-directory: ./frontend
-        run: npm run build
+        run: |
+          DIR=./frontend
+          if [ ! -d "$DIR" ]; then
+            DIR=.
+          fi
+          echo "Building frontend in $DIR"
+          cd "$DIR"
+          npm run build
