@@ -32,6 +32,11 @@ jobs:
         run: |
           PYTHONPATH=agents pytest -q
 
+      - name: Run E2E simulator (dry-run)
+        run: |
+          # Force dry-run by unsetting ICP network env
+          PYTHONPATH=agents ICP_NETWORK_URL= python -c "import e2e_sim; import asyncio; asyncio.run(e2e_sim.run_once('test e2e'))"
+
 
 
       - name: Setup Node
@@ -43,4 +48,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          # Run frontend tests in CI (vitest) before build
+          npm ci
+          npm test --silent
           npm run build
