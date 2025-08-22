@@ -1,0 +1,8 @@
+{
+  "canisters": {
+    "anchor_registry": {
+      "main": "src/main.mo",
+      "type": "motoko"
+    }
+  }
+}

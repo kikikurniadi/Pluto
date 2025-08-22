@@ -7,6 +7,65 @@ on:
     branches: [ main ]
 
 jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssl curl jq
+
+      - name: Install and run dfx (if canister code present)
+        run: |
+          # Only attempt dfx steps if icp_canister exists and is non-empty
+          if [ -d icp_canister ] && [ "$(ls -A icp_canister 2>/dev/null)" ]; then
+            echo "icp_canister found, installing dfx and starting replica"
+            bash -c "curl -fsSL https://sdk.dfinity.org/install.sh | sh" || true
+            export PATH="$HOME/.local/share/dfx/bin:$PATH"
+            dfx start --background || true
+            for i in $(seq 1 30); do
+              if curl -sSf http://127.0.0.1:4943/api/v2/status >/dev/null 2>&1; then
+                echo "replica ready"
+                break
+              fi
+              sleep 1
+            done
+            # Attempt to deploy canisters to the local replica; non-fatal if fails
+            dfx deploy --network local || true
+          else
+            echo "icp_canister not present or empty; skipping dfx install/start/deploy"
+          fi
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f agents/requirements.txt ]; then pip install -r agents/requirements.txt; fi
+          pip install pytest
+
+      - name: Run agents test suite
+        run: |
+          pytest -q agents || pytest -q
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
   test-and-build:
     runs-on: ubuntu-latest
     steps:
